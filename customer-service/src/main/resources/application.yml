@@ -1,0 +1,28 @@
+server:
+  port: 8184
+
+spring:
+  jpa:
+    open-in-view: false
+    show-sql: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres?currentSchema=customers&binaryTransfer=true&reWriteBatchedInserts=true&stringType=unspecified
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+#    platform: postgres
+#    schema: classpath:init-schema.sql
+#    data: classpath:init-data.sql
+#    initialization-mode: always
+  sql:
+    init:
+      platform: postgres
+      schema-locations:
+        - classpath:init-schema.sql
+      data-locations:
+        - classpath:init-data.sql
+      mode: always

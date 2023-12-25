@@ -1,0 +1,116 @@
+server:
+  port: 8181
+
+logging:
+  level:
+    com.sonha: DEBUG
+
+order-service:
+  payment-request-topic-name: payment-request
+  payment-response-topic-name: payment-response
+  restaurant-approval-request-topic-name: restaurant-approval-request
+  restaurant-approval-response-topic-name: restaurant-approval-response
+
+spring:
+  profiles:
+    active:
+      - local
+  jpa:
+    open-in-view: false
+    show-sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres?currentSchema=orders&binaryTransfer=true&reWriteBatchedInserts=true&stringType=unspecified
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+#    platform: postgres
+#    schema: classpath:init-schema.sql
+#    initialization-mode: always
+  sql:
+    init:
+      platform: postgres
+      schema-locations:
+        - classpath:init-schema.sql
+        - classpath:restaurants-schema.sql
+      data-locations:
+        - classpath:restaurants-data.sql
+      mode: always
+
+kafka-config:
+  bootstrap-servers: localhost:19092, localhost:29092, localhost:39092
+  schema-registry-url-key: schema.registry.url
+  schema-registry-url: http://localhost:8081
+  num-of-partitions: 3
+  replication-factor: 3
+
+kafka-producer-config:
+  # Serialize into Avro data formats
+  key-serializer-class: org.apache.kafka.common.serialization.StringSerializer
+  value-serializer-class: io.confluent.kafka.serializers.KafkaAvroSerializer
+  # snappy: gives good balance of CPU usage, compress ratio, speed and network utilization
+  # gzip: compressed more but slower
+  # lz4: compress less but faster, but network bandwidth higher
+  # zstd:
+  compression-type: snappy
+  # set all: kafka producer will wait acknowledgement from each broker before confirming the produce operation (best practice)
+  # set 1: confirmation from target broker that gets requests from the producer clients will be enough
+  # set 0: producer will not wait any confirmation from kafka brokers. This will lead to a non-resilient system
+  acks: all
+  # 16kb = 16384
+  batch-size: 16384
+  # Allowing increasing the batch size (send data in batches from producer to Kafka brokers)
+  batch-size-boost-factor: 100
+  # Add a delay on producer before sanding data (for light load even if the batch size limit is not reached)
+  linger-ms: 5
+  # Timeout in case no responses come from kafka broker
+  request-timeout-ms: 60000
+  # Retry 5 times in case of error
+  retry-count: 5
+
+kafka-consumer-config:
+  # Deserialize data from producers sent
+  key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+  # Ensures kafka consumer don't start from beginning each time while consuming a kafka topic,
+  # it'll continue from the last read item (prevent reading data from the start)
+  payment-consumer-group-id: payment-topic-consumer
+  restaurant-approval-consumer-group-id: restaurant-approval-topic-consumer
+  customer-group-id: customer-topic-consumer
+  # Set earliest: if there are no offset remains in kafka servers, want to start reading from the beginning of a partition
+  # set latest: it'll reset the offset to the latest records, meanings, only read the new data after the service starts
+  auto-offset-reset: earliest
+  # Because of using avro data types while holding data on kafka, set true for properties bellow
+  specific-avro-reader-key: specific.avro.reader
+  specific-avro-reader: true
+  # Allow to consume data in batches instead of consuming them one by one
+  batch-listener: true
+  # Set false: kafka listener will not start automatically
+  auto-startup: true
+  # Create multiple threads (set 3: equals to partition number)
+  # If set more three consumers, it'll be idle until adding another partition
+  concurrency-level: 3
+  # Set timeout (10s) for heartbeat threads and specifies amount of time between that broken needs to get at least one heartbeat
+  # signal from consumer. If broker doesn't get a signal in this timeout interval, it'll mark consumer as dead and remove from
+  # consumer group
+  session-timeout-ms: 10000
+  # Set frequency of sending heartbeat signals (3s): every three seconds, consumer will send a heartbeat signal to broker
+  heartbeat-interval-ms: 3000
+  # For user threads: if message processing logic too heavy, it'll need more time.
+  # If in case consumer marked as dead, it will leave from group, coordinator will trigger new round of re-balance to assign
+  # partitions to do other available consumers
+  max-poll-interval-ms: 300000
+  # Fetch 500 records at maximum at a time in each poll
+  max-poll-records: 500
+  # Maximum bytes fetched in each poll (1MB = 1048576)
+  max-partition-fetch-bytes-default: 1048576
+  # Increase limits and tune consumer according to environment and data
+  max-partition-fetch-bytes-boost-factor: 1
+  # If no data on kafka topic, it'll wait some time and block the client codes
+  # (wait 150ms for new records)
+  # If set too large, thread will be blocked too long time
+  # If set too small, it will cause CPU stall
+  poll-timeout-ms: 150
